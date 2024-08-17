@@ -1,0 +1,269 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="pd.css">
+    </head>
+    <body>
+        <style>
+        /* http://meyerweb.com/eric/tools/css/reset/ 
+        v2.0 | 20110126
+        License: none (public domain)
+        */
+
+        html, body, div, span, applet, object, iframe,
+        h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+        a, abbr, acronym, address, big, cite, code,
+        del, dfn, em, img, ins, kbd, q, s, samp,
+        small, strike, strong, sub, sup, tt, var,
+        b, u, i, center,
+        dl, dt, dd, ol, ul, li,
+        fieldset, form, label, legend,
+        table, caption, tbody, tfoot, thead, tr, th, td,
+        article, aside, canvas, details, embed, 
+        figure, figcaption, footer, header, hgroup, 
+        menu, nav, output, ruby, section, summary,
+        time, mark, audio, video {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+        /* HTML5 display-role reset for older browsers */
+        article, aside, details, figcaption, figure, 
+        footer, header, hgroup, menu, nav, section {
+            display: block;
+        }
+        body {
+            line-height: 1;
+        }
+        ol, ul {
+            list-style: none;
+        }
+        blockquote, q {
+            quotes: none;
+        }
+        blockquote:before, blockquote:after,
+        q:before, q:after {
+            content: '';
+            content: none;
+        }
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+        #p {
+            display: "none"
+        }
+
+        #menu {
+            position: fixed;
+            bottom: 0px;
+            left: 0px;
+            background: white;
+            border: 1px solid black;
+        }
+
+        #top-menu {
+            background: lightgray;
+        }
+
+        .menu-button {
+            display: inline-block;
+            margin-left: 10px;
+            margin-right: 10px;
+        }
+
+        .menu-button:hover {
+            cursor: pointer;
+            color: green;
+        }
+
+        </style>
+        <div id="top-menu">
+            <span class="menu-button" id="reassign-colors">Reassign Colors</span>
+            <span class="menu-button" id="redrawmap">Draw Map</span>
+            <span class="menu-button" id="upload-defs">Upload Definitions</span>
+            <input type="file" id="fileInput" accept=".csv" style="display: none">
+        </div>
+        <canvas id="pdcanvas" height="2048" width="4096"></canvas>
+        <img id="p" src="provinces.png" style="display: none"></img>
+        <div id="download-links" style="display: none"></div>
+
+
+        <script>
+    let canvas = document.getElementById("pdcanvas");
+    const daBom = `\ufeff`;
+    canvas.style.width = '95vw'; 
+    canvas.style.height = '100vh';
+    var ctx = canvas.getContext('2d');
+    let img = document.getElementById("p");
+
+    document.getElementById("redrawmap").onclick = function() {
+        ctx.drawImage(img, 0, 0);
+    };
+
+    let currentDef;
+    let definitions = [];  // Definition array
+
+    // Function to get mouse position
+    function getMousePos(canvas, evt) {
+        let rect = canvas.getBoundingClientRect();
+        return {
+            x: Math.floor(((evt.clientX - rect.left) / (rect.right - rect.left) * canvas.width)),
+            y: Math.floor(((evt.clientY - rect.top) / (rect.bottom - rect.top) * canvas.height)),
+        };
+    }
+
+    function downloadImage(canvas, filename) {
+        let link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL();
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        link.href = undefined
+  }
+
+    // Function to generate random colors
+    function getRandomColor() {
+        let col = Math.floor(Math.random() * 256);
+        if (col === 0) {
+            col = 1
+        }
+        return col
+    }
+
+    // Function to reassign colors and update the definition file
+    function reassignColors() {
+        let colorMap = new Map();
+
+        // Create a map of old colors to new colors
+        for (let i = 1; i < definitions.length; i++) {
+            let def = definitions[i];
+            let oldColor = `${def.r},${def.g},${def.b}`;
+            let newColor = [getRandomColor(), getRandomColor(), getRandomColor()];
+
+            // Update the definition with the new color
+            def.r = newColor[0];
+            def.g = newColor[1];
+            def.b = newColor[2];
+
+            colorMap.set(oldColor, newColor);
+        }
+
+        redrawMapWithNewColors(colorMap);
+        outputDefinitionFile(sortById(definitions));
+        downloadImage(canvas, "provinces.png")
+    }
+
+    // Function to redraw the map with the new colors
+    function redrawMapWithNewColors(colorMap) {
+        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i];
+            let g = data[i + 1];
+            let b = data[i + 2];
+            let colorKey = `${r},${g},${b}`;
+
+            if (colorMap.has(colorKey)) {
+                let newColor = colorMap.get(colorKey);
+                data[i] = newColor[0];
+                data[i + 1] = newColor[1];
+                data[i + 2] = newColor[2];
+            }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Event listener for the reassign colors button
+    document.getElementById("reassign-colors").onclick = function() {
+        reassignColors();
+        //outputDefinitionFile(sortedDef);
+    };
+
+document.getElementById("redrawmap").onclick = function() {
+    ctx.drawImage(img, 0, 0)
+}
+
+function readCSVFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        // Split the file content by newlines to get an array of lines
+        const lines = event.target.result.split(/\r\n|\n/);
+        // Process each line
+        lines.forEach(line => {
+            // Use a regular expression to extract the id, red, green, blue, and name
+            const match = line.match(/^(\d+);(\d+);(\d+);(\d+);([^;]+);/);
+            if (match) {
+                // Create an object with the extracted values and push it into the 'definitions' array
+                const obj = {
+                    id: parseInt(match[1], 10),
+                    r: parseInt(match[2], 10),
+                    g: parseInt(match[3], 10),
+                    b: parseInt(match[4], 10),
+                    name: match[5]
+                };
+                definitions.push(obj);
+            }
+        });
+        console.log(definitions); // Display the objects for verification
+    };
+
+    reader.readAsText(file); // Read the file as text
+}
+
+// Set up an event listener on the file input element
+document.getElementById('fileInput').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (file) {
+        readCSVFile(file);
+    }
+}, false);
+
+document.getElementById("upload-defs").onclick = function() {
+    document.getElementById("fileInput").click()
+}
+
+function sortById(array) {
+    return array.sort((a, b) => a.id - b.id);
+}
+
+function outputDefinitionFile(sortedDef) {
+    let t = `${daBom}`
+    let l = `${daBom}l_english:\n`
+    
+    for (let i = 0; i < sortedDef.length; i++) {
+        let p = sortedDef[i]
+        t += `${p.id};${p.r};${p.g};${p.b};${p.name};x;\n`
+
+        let locName = p.name.toLowerCase()
+        let apost = /'/g
+        let space = /\s/g
+        let dash = /-/g
+        locName = locName.replace(apost, "")
+        locName = locName.replace(space, "_")
+        locName = locName.replace(dash, "_")
+        if (i === 0) {
+
+        } else {
+            l += `  b_${locName}: "${p.name}"\n`
+        }
+        
+    }
+    var data = new Blob([t], {type: 'text/plain'})
+    var url = window.URL.createObjectURL(data);
+    let link = `<a id="definition-download-link" download="definition.csv" style="display: none" href="">Download Province Definitions</a>`
+    document.getElementById("download-links").innerHTML += `${link}`;
+    document.getElementById('definition-download-link').href = url
+    document.getElementById('definition-download-link').click()
+}
+
+
+
+        </script>
+    </body>
+</html>
