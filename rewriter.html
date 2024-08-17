@@ -103,6 +103,42 @@
         ctx.drawImage(img, 0, 0);
     };
 
+
+    function getColorObjectFromString(string) {
+  let colors = string.match(/(\d+)\,\s(\d+)\,\s(\d+)/)
+  let o = {};
+  o.r = colors[1];
+  o.g = colors[2];
+  o.b = colors[3]
+  return o;
+}
+
+    let uniqueColorSet = new Set();
+for (let i = 0; i < 20000; i++) {
+   uniqueColorSet.add(getRandomColor())
+}
+uniqueColorSet = [...uniqueColorSet]
+
+let uniqueColorCount = 0;
+
+let provinceKeys = {}
+
+function getUniqueColor() {
+    let randColor = uniqueColorSet[uniqueColorCount]
+    let randCheck = getColorObjectFromString(randColor)
+    while (provinceKeys[`${randCheck.r}, ${randCheck.g}, ${randCheck.b}`]) {
+        randColor = uniqueColorSet[uniqueColorCount]
+        randCheck = getColorObjectFromString(randColor)
+    }
+    provinceKeys[`${randCheck.r}, ${randCheck.g}, ${randCheck.b}`]  = true
+    uniqueColorCount += 1;
+    
+    return randColor;
+}
+
+
+
+
     let currentDef;
     let definitions = [];  // Definition array
 
@@ -127,11 +163,9 @@
 
     // Function to generate random colors
     function getRandomColor() {
-        let col = Math.floor(Math.random() * 256);
-        if (col === 0) {
-            col = 1
-        }
-        return col
+        let r = Math.floor(Math.random() * 256)
+        if (r === 0) {r = 10 } // prevents 0,0,0 which is not allowed
+        return `rgb(${r}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)})`
     }
 
     // Function to reassign colors and update the definition file
@@ -142,15 +176,19 @@
         for (let i = 1; i < definitions.length; i++) {
             let def = definitions[i];
             let oldColor = `${def.r},${def.g},${def.b}`;
-            let newColor = [getRandomColor(), getRandomColor(), getRandomColor()];
+            let nc = getUniqueColor()
+            console.log(nc)
+            let newColor = getColorObjectFromString(nc);
+            console.log(newColor);
 
             // Update the definition with the new color
-            def.r = newColor[0];
-            def.g = newColor[1];
-            def.b = newColor[2];
+            def.r = nc.r;
+            def.g = nc.g;
+            def.b = nc.b;
 
             colorMap.set(oldColor, newColor);
         }
+        console.log(uniqueColorCount)
 
         redrawMapWithNewColors(colorMap);
         outputDefinitionFile(sortById(definitions));
@@ -159,6 +197,7 @@
 
     // Function to redraw the map with the new colors
     function redrawMapWithNewColors(colorMap) {
+        console.log(colorMap)
         let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         let data = imageData.data;
 
@@ -170,9 +209,9 @@
 
             if (colorMap.has(colorKey)) {
                 let newColor = colorMap.get(colorKey);
-                data[i] = newColor[0];
-                data[i + 1] = newColor[1];
-                data[i + 2] = newColor[2];
+                data[i] = newColor.r;
+                data[i + 1] = newColor.g;
+                data[i + 2] = newColor.b;
             }
         }
 
